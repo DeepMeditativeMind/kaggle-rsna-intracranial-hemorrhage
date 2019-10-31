@@ -42,27 +42,14 @@ def parse_orientation(df):
 
 def add_adjacent_labels(df):
     df = df.sort_values('PositionOrd')
-
     records = []
     print('making adjacent labels...')
     for index,group in tqdm(df.groupby('StudyInstanceUID')):
-
         labels = list(group.labels)
         for j,id in enumerate(group.ID):
-            if j == 0:
-                left = labels[j-1]
-            else:
-                left = ''
-            if j+1 == len(labels):
-                right = ''
-            else:
-                right = labels[j+1]
-
-            records.append({
-                'LeftLabel': left,
-                'RightLabel': right,
-                'ID': id,
-            })
+            left  = '' if j   == 0           else labels[j-1]
+            right = '' if j+1 == len(labels) else labels[j+1]
+            records.append({ 'LeftLabel': left, 'RightLabel': right, 'ID': id, })
     return pd.merge(df, pd.DataFrame(records), on='ID')
 
 

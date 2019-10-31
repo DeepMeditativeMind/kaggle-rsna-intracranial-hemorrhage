@@ -19,7 +19,7 @@ def get_args():
     parser.add_argument('--input', help='provided by kaggle, stage_1_train.csv for stage1')
     parser.add_argument('--output')
     parser.add_argument('--imgdir')
-    parser.add_argument('--n-pool', default=4, type=int)
+    parser.add_argument('--n-pool', default=8, type=int)
     parser.add_argument('--nrows', default=None, type=int)
     return parser.parse_args()
 
@@ -29,38 +29,25 @@ def group_id_by_label(df):
     for row in tqdm(df.itertuples(), total=len(df)):
         prefix, id, label = row.ID.split('_')
         id = '%s_%s' % (prefix, id)
-        if id not in ids:
-            ids[id] = []
-        if row.Label == 1: 
-            ids[id].append(label)
+        if id not in ids: ids[id] = []
+        if row.Label == 1: ids[id].append(label)
     return ids
 
 
 def remove_corrupted_images(ids):
     ids = ids.copy()
     for id in ['ID_6431af929']:
-        try:
-            ids.pop(id) 
-        except KeyError as e:
-            print('%s not found' % id)
-        else:
-            print('removed %s' % id)
-
+        try: ids.pop(id)
+        except KeyError as e: print('%s not found' % id)
+        else: print('removed %s' % id)
     return ids
 
 
 def create_record(item, dirname):
-
     id, labels = item
-
     path = '%s/%s.dcm' % (dirname, id)
     dicom = pydicom.dcmread(path)
-    
-    record = {
-        'ID': id,
-        'labels': ' '.join(labels),
-        'n_label': len(labels),
-    }
+    record = { 'ID': id, 'labels': ' '.join(labels), 'n_label': len(labels), }
     record.update(misc.get_dicom_raw(dicom))
 
     raw = dicom.pixel_array
@@ -111,11 +98,8 @@ def main():
 
     ids = group_id_by_label(df_input)
     ids = remove_corrupted_images(ids)
-    
     df_output = create_df(ids, args)
-
-    with open(args.output, 'wb') as f:
-        pickle.dump(df_output, f)
+    with open(args.output, 'wb') as f: pickle.dump(df_output, f)
 
     print('converted dicom to dataframe (%d records)' % len(df_output))
     print('saved to %s' % args.output)

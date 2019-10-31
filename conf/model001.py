@@ -17,9 +17,7 @@ loss = dict(
 
 optim = dict(
     name='Adam',
-    params=dict(
-        lr=6e-5,
-    ),
+    params=dict( lr=6e-5,),
 )
 
 model = dict(
@@ -30,10 +28,7 @@ model = dict(
 
 scheduler = dict(
     name='MultiStepLR',
-    params=dict(
-        milestones=[1,2],
-        gamma=2/3,
-    ),
+    params=dict( milestones=[1,2], gamma=2/3,),
 )
 
 #normalize = {'mean': [0.485, 0.456, 0.406], 'std': [0.229, 0.224, 0.225],}

@@ -29,7 +29,7 @@ def get_args():
     parser.add_argument('--fold', type=int, required=True)
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--snapshot')
-    parser.add_argument('--output') 
+    parser.add_argument('--output')
     parser.add_argument('--n-tta', default=1, type=int)
     return parser.parse_args()
 
@@ -93,22 +93,12 @@ def valid(cfg, model):
 
 
 def train(cfg, model):
-
     criterion = factory.get_loss(cfg)
     optim = factory.get_optim(cfg, model.parameters())
-
-    best = {
-        'loss': float('inf'),
-        'score': 0.0,
-        'epoch': -1,
-    }
+    best = { 'loss': float('inf'), 'score': 0.0, 'epoch': -1, }
     if cfg.resume_from:
         detail = util.load_model(cfg.resume_from, model, optim=optim)
-        best.update({
-            'loss': detail['loss'],
-            'score': detail['score'],
-            'epoch': detail['epoch'],
-        })
+        best.update({ 'loss': detail['loss'], 'score': detail['score'], 'epoch': detail['epoch'], })
 
     folds = [fold for fold in range(cfg.n_fold) if cfg.fold != fold]
     loader_train = factory.get_dataloader(cfg.data.train, folds)
@@ -120,42 +110,27 @@ def train(cfg, model):
     scheduler = factory.get_scheduler(cfg, optim, best['epoch'])
 
     log('apex %s' % cfg.apex)
-    if cfg.apex:
-        amp.initialize(model, optim, opt_level='O1')
+    if cfg.apex: amp.initialize(model, optim, opt_level='O1')
 
     for epoch in range(best['epoch']+1, cfg.epoch):
-
         log(f'\n----- epoch {epoch} -----')
-
         util.set_seed(epoch)
-
         run_nn(cfg.data.train, 'train', model, loader_train, criterion=criterion, optim=optim, apex=cfg.apex)
         with torch.no_grad():
             val = run_nn(cfg.data.valid, 'valid', model, loader_valid, criterion=criterion)
 
-        detail = {
-            'score': val['score'],
-            'loss': val['loss'],
-            'epoch': epoch,
-        }
-        if val['loss'] <= best['loss']:
-            best.update(detail)
-
+        detail = { 'score': val['score'], 'loss': val['loss'], 'epoch': epoch, }
+        if val['loss'] <= best['loss']: best.update(detail)
         util.save_model(model, optim, detail, cfg.fold, cfg.workdir)
-            
         log('[best] ep:%d loss:%.4f score:%.4f' % (best['epoch'], best['loss'], best['score']))
-            
         #scheduler.step(val['loss']) # reducelronplateau
         scheduler.step()
 
 
 def run_nn(cfg, mode, model, loader, criterion=None, optim=None, scheduler=None, apex=None):
-    if mode in ['train']:
-        model.train()
-    elif mode in ['valid', 'test']:
-        model.eval()
-    else:
-        raise 
+    if mode in ['train']: model.train()
+    elif mode in ['valid', 'test']: model.eval()
+    else: raise
 
     t1 = time.time()
     losses = []
@@ -164,28 +139,23 @@ def run_nn(cfg, mode, model, loader, criterion=None, optim=None, scheduler=None,
     outputs_all = []
 
     for i, (inputs, targets, ids) in enumerate(loader):
-
         batch_size = len(inputs)
-
         inputs = inputs.cuda()
         targets = targets.cuda()
         outputs = model(inputs)
 
         if mode in ['train', 'valid']:
             loss = criterion(outputs, targets)
-            with torch.no_grad():
-                losses.append(loss.item())
+            with torch.no_grad(): losses.append(loss.item())
 
         if mode in ['train']:
             if apex:
-                with amp.scale_loss(loss, optim) as scaled_loss:
-                    scaled_loss.backward()
-            else:
-                loss.backward() # accumulate loss
+                with amp.scale_loss(loss, optim) as scaled_loss: scaled_loss.backward()
+            else: loss.backward() # accumulate loss
             if (i+1) % cfg.n_grad_acc == 0:
                 optim.step() # update
                 optim.zero_grad() # flush
-            
+
         with torch.no_grad():
             ids_all.extend(ids)
             targets_all.extend(targets.cpu().numpy())
@@ -198,12 +168,8 @@ def run_nn(cfg, mode, model, loader, criterion=None, optim=None, scheduler=None,
         print(progress, end='')
         sys.stdout.flush()
 
-    result = {
-        'ids': ids_all,
-        'targets': np.array(targets_all),
-        'outputs': np.array(outputs_all),
-        'loss': np.sum(losses) / (i+1),
-    }
+    result = { 'ids': ids_all, 'targets': np.array(targets_all),
+        'outputs': np.array(outputs_all), 'loss': np.sum(losses) / (i+1), }
 
     if mode in ['train', 'valid']:
         result.update(calc_auc(result['targets'], result['outputs']))
@@ -212,9 +178,7 @@ def run_nn(cfg, mode, model, loader, criterion=None, optim=None, scheduler=None,
 
         log(progress + ' auc:%.4f micro:%.4f macro:%.4f' % (result['auc'], result['auc_micro'], result['auc_macro']))
         log('%.6f %s' % (result['logloss'], np.round(result['logloss_classes'], 6)))
-    else:
-        log('')
-
+    else: log('')
     return result
 
 
@@ -222,7 +186,7 @@ def calc_logloss(targets, outputs, eps=1e-5):
     # for RSNA
     try:
         logloss_classes = [log_loss(np.floor(targets[:,i]), np.clip(outputs[:,i], eps, 1-eps)) for i in range(6)]
-    except ValueError as e: 
+    except ValueError as e:
         logloss_classes = [1, 1, 1, 1, 1, 1]
 
     return {
