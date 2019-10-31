@@ -61,12 +61,9 @@ def main():
     model = factory.get_model(cfg)
     model.cuda()
 
-    if cfg.mode == 'train':
-        train(cfg, model)
-    elif cfg.mode == 'valid':
-        valid(cfg, model)
-    elif cfg.mode == 'test':
-        test(cfg, model)
+    if cfg.mode == 'train': train(cfg, model)
+    elif cfg.mode == 'valid': valid(cfg, model)
+    elif cfg.mode == 'test': test(cfg, model)
 
 
 def test(cfg, model):
@@ -204,14 +201,9 @@ def calc_auc(targets, outputs):
         'auc_micro': micro,
     }
 
-
-
 if __name__ == '__main__':
-
     torch.backends.cudnn.benchmark = True
     torch.backends.cudnn.deterministic = True
+    try: main()
+    except KeyboardInterrupt: print('Keyboard Interrupted')
 
-    try:
-        main()
-    except KeyboardInterrupt:
-        print('Keyboard Interrupted')

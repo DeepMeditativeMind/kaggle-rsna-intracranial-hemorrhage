@@ -8,6 +8,7 @@ from torch.optim import lr_scheduler
 import albumentations as A
 from albumentations.pytorch import ToTensor
 import pretrainedmodels
+from geffnet import *
 
 from .dataset.custom_dataset import CustomDataset
 from .transforms.transforms import RandomResizedCrop
@@ -35,22 +36,31 @@ def get_transforms(cfg):
     transforms = [get_object(transform)(**transform.params) for transform in cfg.transforms]
     return A.Compose(transforms)
 
+class Flatten(nn.Module):
+    def forward(self, x): return x.view(x.size(0), -1)
 
 def get_model(cfg):
     log(f'model: {cfg.model.name}')
     log(f'pretrained: {cfg.model.pretrained}')
 
-    if cfg.model.name in ['resnext101_32x8d_wsl']:
+    if cfg.model.name == 'resnext101_32x8d_wsl':
         model = torch.hub.load('facebookresearch/WSL-Images', cfg.model.name)
         model.fc = torch.nn.Linear(2048, cfg.model.n_output)
         return model
 
-    try: model_func = pretrainedmodels.__dict__[cfg.model.name]
-    except KeyError as e: model_func = eval(cfg.model.name)
+    if cfg.model.name in pretrainedmodels.__dict__:
+        model_func = pretrainedmodels.__dict__[cfg.model.name]
+        model = model_func(num_classes=1000, pretrained='imagenet' if cfg.model.pretrained else None)
+        model.avg_pool = nn.AdaptiveAvgPool2d(1)
+        model.last_linear = nn.Linear( model.last_linear.in_features, cfg.model.n_output,)
+    else:
+        model_func = eval(cfg.model.name)
+        model = model_func(pretrained=cfg.model.pretrained, as_sequential=True)
+        layers = list(model.children())[:-4]
+        head = [nn.AdaptiveAvgPool2d(1), Flatten(),
+                nn.Linear(layers[-2].num_features, cfg.model.n_output)]
+        model = nn.Sequential(*(layers + head))
 
-    model = model_func(num_classes=1000, pretrained=cfg.model.pretrained)
-    model.avg_pool = nn.AdaptiveAvgPool2d(1)
-    model.last_linear = nn.Linear( model.last_linear.in_features, cfg.model.n_output,)
     return model
 
 
